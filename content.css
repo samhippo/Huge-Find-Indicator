@@ -21,7 +21,6 @@
 }
 
 .hfi-arrow-svg {
-    /* these values are set in javascript from popup */
     width: var(--hfi-width);
     height: var(--hfi-height);
 }

@@ -5,42 +5,21 @@
  * the background.js file is used to store data between closing and reopening the popup
  */
 
-var GLOBAL_SELECTED_COLOR; //element ID of the Color button currently selected
 var GLOBAL_RESULT_COUNT = -1; //the total result count, -1 means the search hasn't happened yet
 var GLOBAL_RESULT_CURRENT = -1; //the current search index when clicking next or previous, -1 means next/prev hasn't been clicked yet
-var GLOBAL_TAB_ID; //everytime this popup opens we set the tab ID here
-
-browser.runtime.onMessage.addListener(notify2);
-
-async function notify2(request, sender, sendResponse) {
-    if (request.name == "CLOSE") {
-        window.close();
-    }
-}
+var GLOBAL_TAB_ID; //everytime this popup opens we reset the current tab ID here
 
 
-function reportError(error) {
-    console.error(`reportError: ${error}`);
-}
 
-
-/* ================================== Popup open ==================================================================== */
+/* ================================== Loading ==================================================================== */
 
 /**
- * async is required because of await
- * NOTE: the page continues to load without waiting for this function to finish
+ * Retreive the current tab ID and loading any saved settings
  */
-// (async() => {
-//     let t = await browser.tabs.query({ currentWindow: true, active: true });
-//     GLOBAL_TAB_ID = t[0].id;
-//     loadSavedResults(GLOBAL_TAB_ID);
-// })();
-
 browser.tabs.query({ currentWindow: true, active: true }).then((t) => {
     GLOBAL_TAB_ID = t[0].id;
     loadSavedResults(GLOBAL_TAB_ID);
-
-});
+}).catch(reportError);
 
 
 /**
@@ -57,14 +36,12 @@ async function loadSavedResults(tabId) {
         GLOBAL_RESULT_CURRENT = -1;
         document.getElementById('id-find-input').value = '';
     }
-
     //if search term doesn't exist in content.js then try to load from background.js
     if (document.getElementById('id-find-input').value == '') {
         browser.runtime.sendMessage({ "name": "LOAD" }).then((response) => {
             document.getElementById('id-find-input').value = response;
-        });
+        }).catch(reportError);
     }
-
     setResultText();
 }
 
@@ -73,34 +50,24 @@ async function loadSavedResults(tabId) {
  * load saved settings
  * If no settings exist then load defaults.
  */
-browser.storage.local.get(["color", "size", "opacity"]).then(loadStorage, loadStorageError);
+browser.storage.local.get(["color", "size", "opacity"]).then(loadStorage, reportError);
 
 function loadStorage(items) {
-
     if (items.size)
         document.getElementById("sizeRange").value = items.size;
-
-
     if (items.opacity)
         document.getElementById("opacityRange").value = items.opacity;
-
-
     if (items.color)
         setColor(document.getElementById(items.color));
-
-
 }
-
-function loadStorageError(items) {
-    console.log('error loading storage');
-}
-
-
-
 
 
 /* ================================== Event Listeners ==================================================================== */
 
+/**
+ * Listen for notifications from content.js or background.js
+ */
+browser.runtime.onMessage.addListener(notify);
 
 /**
  * Mouse Click: Find button
@@ -129,16 +96,16 @@ document.querySelectorAll('.options-color').forEach((item) => {
  * Change Event: Opacity slider
  */
 document.getElementById('opacityRange').addEventListener("input", function(event) {
-    browser.storage.local.set({ opacity: this.value });
-    browser.tabs.sendMessage(GLOBAL_TAB_ID, { name: "CHANGE_OPACITY", opacity: this.value });
+    browser.storage.local.set({ opacity: this.value }).catch(reportError);
+    browser.tabs.sendMessage(GLOBAL_TAB_ID, { name: "CHANGE_OPACITY", opacity: this.value }).catch(reportError);
 });
 
 /**
  * Change Event: Size slider
  */
 document.getElementById('sizeRange').addEventListener("input", function(event) {
-    browser.storage.local.set({ size: this.value });
-    browser.tabs.sendMessage(GLOBAL_TAB_ID, { name: "CHANGE_SIZE", size: this.value });
+    browser.storage.local.set({ size: this.value }).catch(reportError);
+    browser.tabs.sendMessage(GLOBAL_TAB_ID, { name: "CHANGE_SIZE", size: this.value }).catch(reportError);
 });
 
 /**
@@ -156,7 +123,7 @@ document.getElementById('id-find-input').addEventListener("keyup", function(even
  * temporarily save the value of the Find field so that it's not lost when we close/reopen the tab
  */
 document.getElementById('id-find-input').addEventListener("input", function(event) {
-    browser.runtime.sendMessage({ "name": "SAVE_INPUT_TEXT", "value": this.value, "tabId": GLOBAL_TAB_ID });
+    browser.runtime.sendMessage({ "name": "SAVE_INPUT_TEXT", "value": this.value, "tabId": GLOBAL_TAB_ID }).catch(reportError);
 });
 
 
@@ -165,6 +132,12 @@ document.getElementById('id-find-input').addEventListener("input", function(even
 
 /* ================================== Event Functions ==================================================================== */
 
+async function notify(request, sender, sendResponse) {
+    //when switching tabs we need to make sure the popup closes
+    if (request.name == "CLOSE") {
+        window.close();
+    }
+}
 
 function colorClick(event) {
     setColor(event.currentTarget);
@@ -194,10 +167,8 @@ function clearClick(event) {
     GLOBAL_RESULT_COUNT = -1;
     GLOBAL_RESULT_CURRENT = -1;
     document.getElementById('id-results').innerHTML = '';
-    browser.tabs.sendMessage(GLOBAL_TAB_ID, { name: "CLEAR_SCREEN" });
-    browser.runtime.sendMessage({ "name": "SAVE_CLEAR", "tabId": GLOBAL_TAB_ID });
-
-    browser.storage.local.clear();
+    browser.tabs.sendMessage(GLOBAL_TAB_ID, { name: "CLEAR_SCREEN" }).catch(reportError);
+    browser.runtime.sendMessage({ "name": "SAVE_CLEAR", "tabId": GLOBAL_TAB_ID }).catch(reportError);
 }
 
 
@@ -208,23 +179,22 @@ function nextClick(event) {
         GLOBAL_RESULT_CURRENT++;
         if (GLOBAL_RESULT_CURRENT >= GLOBAL_RESULT_COUNT)
             GLOBAL_RESULT_CURRENT = 0;
-        browser.runtime.sendMessage({ "name": "SAVE_RESULT_CURRENT", "current": GLOBAL_RESULT_CURRENT, "tabId": GLOBAL_TAB_ID });
+        browser.runtime.sendMessage({ "name": "SAVE_RESULT_CURRENT", "current": GLOBAL_RESULT_CURRENT, "tabId": GLOBAL_TAB_ID }).catch(reportError);
         setResultText();
-        browser.tabs.sendMessage(GLOBAL_TAB_ID, { name: "NEXT_RESULT", index: GLOBAL_RESULT_CURRENT });
+        browser.tabs.sendMessage(GLOBAL_TAB_ID, { name: "NEXT_RESULT", index: GLOBAL_RESULT_CURRENT }).catch(reportError);
     }
 }
 
 function prevClick(event) {
-
     if (GLOBAL_RESULT_COUNT <= 0) {
         return;
     } else {
         GLOBAL_RESULT_CURRENT--;
         if (GLOBAL_RESULT_CURRENT < 0)
             GLOBAL_RESULT_CURRENT = (GLOBAL_RESULT_COUNT - 1);
-        browser.runtime.sendMessage({ "name": "SAVE_RESULT_CURRENT", "current": GLOBAL_RESULT_CURRENT, "tabId": GLOBAL_TAB_ID });
+        browser.runtime.sendMessage({ "name": "SAVE_RESULT_CURRENT", "current": GLOBAL_RESULT_CURRENT, "tabId": GLOBAL_TAB_ID }).catch(reportError);
         setResultText();
-        browser.tabs.sendMessage(GLOBAL_TAB_ID, { name: "NEXT_RESULT", index: GLOBAL_RESULT_CURRENT });
+        browser.tabs.sendMessage(GLOBAL_TAB_ID, { name: "NEXT_RESULT", index: GLOBAL_RESULT_CURRENT }).catch(reportError);
     }
 }
 
@@ -232,23 +202,20 @@ function prevClick(event) {
 async function findClick(event) {
     let searchTerm = document.getElementById('id-find-input').value;
     GLOBAL_RESULT_CURRENT = -1;
-    if (searchTerm == '' || searchTerm.length == 0) {
+    if (searchTerm.length == 0 || searchTerm.trim().length == 0) {
+        document.getElementById('id-find-input').value = '';
         GLOBAL_RESULT_COUNT = -1;
         GLOBAL_RESULT_CURRENT = -1;
         setResultText();
-        browser.tabs.sendMessage(GLOBAL_TAB_ID, { name: "CLEAR_SCREEN" });
-        browser.runtime.sendMessage({ "name": "SAVE_CLEAR", "tabId": GLOBAL_TAB_ID });
+        browser.tabs.sendMessage(GLOBAL_TAB_ID, { name: "CLEAR_SCREEN" }).catch(reportError);
+        browser.runtime.sendMessage({ "name": "SAVE_CLEAR", "tabId": GLOBAL_TAB_ID }).catch(reportError);
     } else {
-
         showLoadingIcon();
-
         //bug fix: input fields need to be cleard before searching
         await browser.tabs.sendMessage(GLOBAL_TAB_ID, { name: "BUG_FIX", searchTerm: searchTerm }).catch(reportError);
-
         let results = await browser.find.find(searchTerm, { includeRangeData: true }).catch(reportError);
-
-        //bug fix: restore input fields after search is complete
         await browser.tabs.sendMessage(GLOBAL_TAB_ID, { name: "RESTORE_BUG_FIX" }).catch(reportError);
+        //end bug fix
         let settings = getSettings();
         //send results to content.js to create markers and update the page
         browser.tabs.sendMessage(GLOBAL_TAB_ID, { ranges: results.rangeData, name: "CREATE_MARKERS", settings: settings }).then((message) => {
@@ -258,7 +225,6 @@ async function findClick(event) {
         }).catch(reportError);
     }
 }
-
 
 
 /* ================================== Misc Functions ==================================================================== */
@@ -272,7 +238,6 @@ function getSettings() {
     let opacity = document.getElementById('opacityRange').value;
     let size = document.getElementById('sizeRange').value;
     let searchTerm = document.getElementById('id-find-input').value;
-
     return { colors: colors, opacity: opacity, size: size, searchTerm: searchTerm };
 }
 
@@ -294,10 +259,13 @@ function setResultText() {
             document.getElementById('id-results').innerHTML = GLOBAL_RESULT_COUNT;
         else
             document.getElementById('id-results').innerHTML = (GLOBAL_RESULT_CURRENT + 1) + ' of ' + GLOBAL_RESULT_COUNT;
-
     } else if (GLOBAL_RESULT_COUNT == 0) {
         document.getElementById('id-results').innerHTML = 'No Results';
     }
+}
+
+function reportError(error) {
+    console.error(`reportError: ${error}`);
 }
 
 
@@ -306,11 +274,11 @@ function setResultText() {
 /**
  * insertCSS
  */
-browser.tabs.insertCSS({ file: "/content.css" });
+browser.tabs.insertCSS({ file: "/content.css" }).catch(reportError);
 
 /**
  * NOTE: there is a check inside content.js that prevents the script from running twice in the same tab
  */
-browser.tabs.executeScript({ file: "/content.js" });
+browser.tabs.executeScript({ file: "/content.js" }).catch(reportError);
 
 //browser.storage.local.clear();

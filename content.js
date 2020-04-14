@@ -8,14 +8,16 @@
     }
     window.hasRun = true;
 
-    var GLOBAL_TIMER;
-    var TIMER_INTERVAL = 100;
-    var GLOBAL_RESULT_LIST = [];
-    var GLOBAL_CURRENT_POS = -1;
+    var GLOBAL_TIMER; //the timer keeps markers updated on the screen
+    var GLOBAL_RESULT_LIST = []; //after a search the results are stored here
+    var GLOBAL_CURRENT_POS = -1; //-1 means next/prev have not bee clicked yet
     var GLOBAL_BUG_FIX = [];
     var GLOBAL_SEARCH_TERM = '';
-    var GLOBAL_COUNT = -1;
+    var GLOBAL_COUNT = -1; //-1 means the search hasn't happened yet
+    const TIMER_INTERVAL = 100; //miliseconds to update page
 
+    //Elements that should not have any search results
+    //https://developer.mozilla.org/en-US/docs/Web/HTML/Element
     let NODE_TYPES_ALLOWED = ['HTML', 'BASE', 'HEAD', 'LINK', 'META', 'STYLE', 'TITLE', 'EMBED', 'IFRAME', 'OBJECT', 'PARAM', 'PICTURE', 'SOURCE', 'CANVAS', 'NOSCRIPT', 'SCRIPT'];
     let NODE_SET = new Set(NODE_TYPES_ALLOWED);
 
@@ -33,7 +35,6 @@
             return Promise.resolve({ response: 'DONE' });
 
         } else if (message.name == "CREATE_MARKERS") {
-
             GLOBAL_SEARCH_TERM = message.settings.searchTerm;
             changeColor(message.settings.colors);
             changeOpacity(message.settings.opacity);
@@ -65,16 +66,19 @@
                 clearInterval(GLOBAL_TIMER);
                 GLOBAL_TIMER = setInterval(checkForChanges, TIMER_INTERVAL);
             }
-
         }
     });
 
-
+    /**
+     * When switching between tabs this retreives the results
+     */
     function resultsExist() {
         return { count: GLOBAL_COUNT, current: GLOBAL_CURRENT_POS, searchTerm: GLOBAL_SEARCH_TERM };
-
     }
 
+    /**
+     * Scroll and highlight next result 
+     */
     function nextResult(index) {
         GLOBAL_CURRENT_POS = index;
         clearInterval(GLOBAL_TIMER);
@@ -115,7 +119,10 @@
         document.documentElement.style.setProperty("--hfi-height", height + 'px');
     }
 
-
+    /**
+     * Bug Fix
+     * If you try searching a page with input fields then it breaks tabs.find
+     */
     function clearInputBug(searchTerm) {
         GLOBAL_BUG_FIX = [];
         let inputFields = document.querySelectorAll('input[type=text]');
@@ -124,12 +131,12 @@
                 GLOBAL_BUG_FIX.push({ input: inputFields[i], value: inputFields[i].value });
                 inputFields[i].value = '';
             }
-
-
         }
-
     }
 
+    /**
+     * After Bug Fix restore values
+     */
     function restoreInputBug() {
         for (let i = 0; i < GLOBAL_BUG_FIX.length; i++) {
             GLOBAL_BUG_FIX[i].input.value = GLOBAL_BUG_FIX[i].value;
@@ -137,99 +144,63 @@
 
     }
 
-
     /**
      * uses rangeData from tabs.find to build and display arrows and underline
      * returns the result count to find.js popup
-     * skips some META elements - needs testing?
-     * skips if element has a negative position - needs testing?
+     * skips some META elements
+     * skips if element has a negative position (off screen)
      */
     function search(ranges) {
-
-        //stop the timer update before clearing the screen
-        clearInterval(GLOBAL_TIMER);
-
-        //remove previous search results
-        removeMarkers();
-        //reset lists
+        clearInterval(GLOBAL_TIMER); //stop the timer while searching
+        removeMarkers(); //remove previous search results
         GLOBAL_RESULT_LIST = [];
-
-
-        //these text nodes should line up with the rangeData returned by tabs.find
+        GLOBAL_CURRENT_POS = -1; //-1 means the user has not clicked on next or prev, 0 means first result
+        GLOBAL_COUNT = 0;
         let results = document.createNodeIterator(document, NodeFilter.SHOW_TEXT);
-        //let results = document.createNodeIterator(document);
-        //temp array to store TEXT_NODES
         let FOUND_NODES = [];
-
         let currentNode;
-
+        /*  Builds an array of all textNodes 
+            these text nodes should line up with the rangeData returned by tabs.find
+            if the textnode does not match with rangeData then we skip the result */
         while (currentNode = results.nextNode()) {
             FOUND_NODES.push(currentNode);
         }
-
-        GLOBAL_CURRENT_POS = -1; //-1 means the user has not clicked on next or prev, 0 means first result
-        GLOBAL_COUNT = 0;
+        //loop results and place markers on screen
         for (let i = 0; i < ranges.length; i++) {
-
             try {
-
                 let foundTextNodeStart = FOUND_NODES[ranges[i].startTextNodePos];
                 let foundTextNodeEnd = FOUND_NODES[ranges[i].endTextNodePos];
-
-                //skip meta nodes
                 if (NODE_SET.has(foundTextNodeStart.parentNode.nodeName.toUpperCase())) {
-                    continue;
+                    continue; //skip meta nodes
                 }
                 //the range is created from inside a text node based on char start/end indexes
                 let range = document.createRange();
-
                 range.setStart(foundTextNodeStart, ranges[i].startOffset);
                 range.setEnd(foundTextNodeEnd, ranges[i].endOffset);
-
-                //rect based on view screen
-                let rect = range.getClientRects()[0];
-
-                //this rect is based on the document area
-                let rectDoc = getOffset(rect);
-
-                //check if the text is outside the document area
+                let rect = range.getClientRects()[0]; //grab first rect only
+                let rectDoc = getOffset(rect); //convert client rect to document rect
                 if (rectDoc.left < 0 || rectDoc.top < 0) {
-                    continue;
+                    continue; //skip result if the text is outside the document area
                 }
-
                 //create new dom objects
                 let arrow = createArrow(rect);
                 let hili = createHighlight(rect);
-
                 //these new html elements will be added to the end of the document.body
                 document.body.appendChild(arrow);
                 document.body.appendChild(hili);
-
                 //this global array will be used when traversing the search results and when updating position
                 GLOBAL_RESULT_LIST.push({ rect: rect, range: range, arrow: arrow, hili: hili });
-
                 GLOBAL_COUNT++; //the final result count can be different from tabs.find
-
             } catch (e) {
-                console.log('range not found');
+                console.log('skipping result do to unknown error');
             }
         }
-
         //sort the result list based on vertical position not horizontal
         GLOBAL_RESULT_LIST.sort(function(a, b) { return a.rect.top - b.rect.top });
-
-        //start the interval timer
-        //every 100ms it will attempt to reposition the markers. This does not seem to affect cpu?
-        GLOBAL_TIMER = setInterval(checkForChanges, TIMER_INTERVAL);
-
-        //for some reason the page does not redraw automatically after search
-        //this seems to trigger a redraw
-        //setTimeout(forceRedraw, 1);
-        forceRedraw();
-
-        return GLOBAL_COUNT;
+        GLOBAL_TIMER = setInterval(checkForChanges, TIMER_INTERVAL); //start timer to keep results in sync with page
+        forceRedraw(); //the page does not update automatically (bug?)
+        return GLOBAL_COUNT; //return count back to popup page
     }
-
 
     /**
      * sometimes the page does not redraw properly, this is a temporary fix
@@ -260,10 +231,9 @@
      * TODO: make svg external file?
      */
     function createArrow(rect) {
-
         let buildHTML = document.createElement("div"); //div is required so that the svg can be bottom aligned at any size
         buildHTML.className = "hfi-arrow-div huge-find-indicator";
-        //this svg created in illustrator with export selection option
+        /* this svg created in illustrator from export selection option */
         buildHTML.innerHTML = '<svg class="hfi-arrow-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 211.98 255.83"><g id="Layer_2" data-name="Layer 2"><g id="Layer_1-2" data-name="Layer 1"><path class="hfi-arrow-path" d="M106,250.83a5,5,0,0,1-3.54-1.47l-96-96a5,5,0,0,1,0-7.07l26.08-26.07a5,5,0,0,1,7.07,0l43.24,43.24V10a5,5,0,0,1,5-5h36.87a5,5,0,0,1,5,5V162.88l42.65-42.65a5,5,0,0,1,7.07,0l26.08,26.07a5,5,0,0,1,0,7.07l-96,96A5,5,0,0,1,106,250.83Z"/><path class="hfi-arrow-path2" d="M124.72,10V175l51.19-51.18L202,149.84l-96,96-96-96,26.07-26.07,51.78,51.78V10h36.87m0-10H87.85a10,10,0,0,0-10,10V151.4L43.14,116.69a10,10,0,0,0-14.14,0L2.93,142.77a10,10,0,0,0,0,14.14l96,96a10,10,0,0,0,14.14,0l96-96a10,10,0,0,0,0-14.14L183,116.69a10,10,0,0,0-14.14,0l-34.12,34.12V10a10,10,0,0,0-10-10Z"/></g></g></svg>';
         let height = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--hfi-height'));
         let ofs = getOffset(rect);
@@ -271,7 +241,6 @@
             buildHTML.style.transform = "rotate(-180deg)";
         }
         positionArrow(buildHTML, rect);
-
         return buildHTML;
     }
 
@@ -280,13 +249,10 @@
      * The highlight was changed to a small div which looks like the text is underlined 
      */
     function createHighlight(rect) {
-
         let buildHTML = document.createElement("div"); //div is required so that the svg can be bottom aligned at any size
         buildHTML.className = "hfi-hili-div huge-find-indicator";
         positionHighlight(buildHTML, rect);
-
         return buildHTML;
-
     }
 
     /**
@@ -307,8 +273,8 @@
             arrow.style.left = (rect.left - 150) + 'px';
             arrow.style.top = (rect.bottom) + 'px';
         } else {
-            arrow.style.left = (rect.left - 150) + 'px'; //150 is the width of the div 
-            arrow.style.top = (rect.top - 300) + 'px'; //300 is the height of the div 
+            arrow.style.left = (rect.left - 150) + 'px'; //150 is the width of the outside div 
+            arrow.style.top = (rect.top - 300) + 'px'; //300 is the height of the outside div 
         }
     }
 
@@ -333,39 +299,29 @@
                 positionArrow(result.arrow, rect);
                 positionHighlight(result.hili, rect);
             } else {
-
+                //if rect doesn't exist then nothing we can do
             }
         }
     }
 
     function removeMarkers() {
-
         let hideArrows = document.querySelectorAll('.huge-find-indicator');
         for (let i = 0; i < hideArrows.length; i++) {
             document.body.removeChild(hideArrows[i]);
         }
-
     }
 
     function clearScreen() {
-
-        //remove timer since nothing to update
-        clearInterval(GLOBAL_TIMER);
-
+        clearInterval(GLOBAL_TIMER); //stop timer since nothing to update
         GLOBAL_RESULT_LIST = [];
         GLOBAL_SEARCH_TERM = '';
         GLOBAL_COUNT = -1;
         GLOBAL_CURRENT_POS = -1;
-
         let hideArrows = document.querySelectorAll('.huge-find-indicator');
         for (let i = 0; i < hideArrows.length; i++) {
             document.body.removeChild(hideArrows[i]);
         }
-
-        //fix because sometimes screen does not clear
-        forceRedraw();
-        //setTimeout(forceRedraw, 1);
-
+        forceRedraw(); //fix because sometimes screen does not update
     }
 
 })();
