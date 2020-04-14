@@ -4,9 +4,11 @@ var SAVED_SEARCH_TERM = '';
 
 async function notify(request, sender, sendResponse) {
     if (request.name == "LOAD") {
-        return Promise.resolve(SAVED_SEARCH_TERM); //returns saved data to popup page
+        //returns saved data to popup page
+        return Promise.resolve(SAVED_SEARCH_TERM);
     } else if (request.name == "SAVE_INPUT_TEXT") {
-        SAVED_SEARCH_TERM = request.value; //search term is saved as the user types
+        //search term is saved as the user types
+        SAVED_SEARCH_TERM = request.value;
     } else if (request.name == "SAVE_CLEAR") {
         SAVED_SEARCH_TERM = '';
     }
