@@ -45,6 +45,9 @@
     z-index: 2147483640 !important;
     position: fixed;
     background-color: var(--hfi-stroke);
+    border-radius: 2px;
+    /* required so that the markers don't interfere with mouse input */
+    pointer-events: none;
 }
 
 .hfi-arrow-path {
