@@ -1,9 +1,10 @@
 :root {
-    --hfi-fill: yellow;
-    --hfi-stroke: black;
-    --hfi-opacity: 1.0;
-    --hfi-width: 55px;
-    --hfi-height: 55px;
+    /* these values are set from find.html */
+    --hfi-fill: unset;
+    --hfi-stroke: unset;
+    --hfi-opacity: unset;
+    --hfi-width: unset;
+    --hfi-height: unset;
 }
 
 @keyframes hfi-fadeIn {
