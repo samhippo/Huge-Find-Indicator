@@ -1,0 +1,26 @@
+{
+    "manifest_version": 2,
+    "name": "Huge Find Indicator",
+    "version": "1.0",
+    "description": "Adds large arrow markers to the current webpage indicating where the search term is located.",
+    "homepage_url": "https://github.com/samhippo/Huge-Find-Indicator",
+    "icons": {
+        "48": "icons/icon-48.png"
+    },
+    "permissions": [
+        "storage",
+        "activeTab",
+        "find"
+    ],
+    "background": {
+        "scripts": [
+            "background.js"
+        ]
+    },
+    "browser_action": {
+        "default_icon": "icons/icon-48.png",
+        "default_title": "Huge Find Indicator",
+        "default_popup": "toolbar-popup/find.html"
+    },
+    "web_accessible_resources": []
+}

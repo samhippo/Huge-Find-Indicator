@@ -1,0 +1,56 @@
+:root {
+    --hfi-fill: yellow;
+    --hfi-stroke: black;
+    --hfi-opacity: 1.0;
+    --hfi-width: 55px;
+    --hfi-height: 55px;
+}
+
+@keyframes hfi-fadeIn {
+    /* simple fadein effect */
+    0% {
+        opacity: 0.0;
+    }
+    99% {
+        opacity: 1.0;
+    }
+    100% {
+        opacity: var(--hfi-opacity);
+    }
+}
+
+.hfi-arrow-svg {
+    /* these values are set in javascript from popup */
+    width: var(--hfi-width);
+    height: var(--hfi-height);
+}
+
+.hfi-arrow-div {
+    z-index: 2147483647 !important;
+    position: fixed;
+    /* size can be anything as long as it is larger than the svg */
+    width: 300px;
+    height: 300px;
+    /* flex is required to keep svg position center bottom */
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    opacity: var(--hfi-opacity);
+    /* required so that the markers don't interfere with mouse input */
+    pointer-events: none;
+}
+
+.hfi-hili-div {
+    /* this is underline effect for results */
+    z-index: 2147483640 !important;
+    position: fixed;
+    background-color: var(--hfi-stroke);
+}
+
+.hfi-arrow-path {
+    fill: var(--hfi-fill);
+}
+
+.hfi-arrow-path2 {
+    fill: var(--hfi-stroke);
+}
