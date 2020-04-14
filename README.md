@@ -1,2 +1,2 @@
 # Huge-Find-Indicator
-This Web Extension searches the current webpage for the specified search term and overlays an arrow for each result.
+This Web Extension searches the current webpage for a specified search term and overlays an arrow for each result.
