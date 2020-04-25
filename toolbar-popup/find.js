@@ -6,8 +6,9 @@
  */
 
 var GLOBAL_RESULT_COUNT = -1; //the total result count, -1 means the search hasn't happened yet
-var GLOBAL_RESULT_CURRENT = -1; //the current search index when clicking next or previous, -1 means next/prev hasn't been clicked yet
+var GLOBAL_RESULT_CURRENT = 0;
 var GLOBAL_TAB_ID; //everytime this popup opens we reset the current tab ID here
+var GLOBAL_SEARCH_TERM = '';
 
 
 
@@ -30,16 +31,19 @@ async function loadSavedResults(tabId) {
     if (exists) {
         GLOBAL_RESULT_COUNT = exists.count;
         GLOBAL_RESULT_CURRENT = exists.current;
+        GLOBAL_SEARCH_TERM = exists.searchTerm;
         document.getElementById('id-find-input').value = exists.searchTerm;
     } else {
         GLOBAL_RESULT_COUNT = -1;
-        GLOBAL_RESULT_CURRENT = -1;
+        GLOBAL_RESULT_CURRENT = 0;
+        GLOBAL_SEARCH_TERM = '';
         document.getElementById('id-find-input').value = '';
     }
     //if search term doesn't exist in content.js then try to load from background.js
     if (document.getElementById('id-find-input').value == '') {
         browser.runtime.sendMessage({ "name": "LOAD" }).then((response) => {
             document.getElementById('id-find-input').value = response;
+            GLOBAL_SEARCH_TERM = response;
         }).catch(reportError);
     }
     setResultText();
@@ -111,10 +115,24 @@ document.getElementById('sizeRange').addEventListener("input", function(event) {
 /**
  * Enter key
  */
-document.getElementById('id-find-input').addEventListener("keyup", function(event) {
+// document.getElementById('id-find-input').addEventListener("keyup", function(event) {
+//     if (event.key === "Enter") {
+//         event.preventDefault();
+//         if (document.getElementById('id-find-input').value != GLOBAL_SEARCH_TERM)
+//             document.getElementById('id-button-find').click();
+//         else
+//             document.getElementById('id-next').click();
+//     }
+// });
+
+
+document.addEventListener("keyup", function(event) {
     if (event.key === "Enter") {
         event.preventDefault();
-        document.getElementById('id-button-find').click();
+        if (document.getElementById('id-find-input').value != GLOBAL_SEARCH_TERM)
+            document.getElementById('id-button-find').click();
+        else
+            document.getElementById('id-next').click();
     }
 });
 
@@ -122,9 +140,9 @@ document.getElementById('id-find-input').addEventListener("keyup", function(even
  * Search field
  * temporarily save the value of the Find field so that it's not lost when we close/reopen the tab
  */
-document.getElementById('id-find-input').addEventListener("input", function(event) {
-    browser.runtime.sendMessage({ "name": "SAVE_INPUT_TEXT", "value": this.value, "tabId": GLOBAL_TAB_ID }).catch(reportError);
-});
+// document.getElementById('id-find-input').addEventListener("input", function(event) {
+//     browser.runtime.sendMessage({ "name": "SAVE_INPUT_TEXT", "value": this.value, "tabId": GLOBAL_TAB_ID }).catch(reportError);
+// });
 
 
 
@@ -165,8 +183,9 @@ function clearClick(event) {
     hideLoadingIcon();
     document.getElementById('id-find-input').value = '';
     GLOBAL_RESULT_COUNT = -1;
-    GLOBAL_RESULT_CURRENT = -1;
-    document.getElementById('id-results').innerHTML = '';
+    GLOBAL_RESULT_CURRENT = 0;
+    GLOBAL_SEARCH_TERM = '';
+    document.getElementById('id-results').innerText = '';
     browser.tabs.sendMessage(GLOBAL_TAB_ID, { name: "CLEAR_SCREEN" }).catch(reportError);
     browser.runtime.sendMessage({ "name": "SAVE_CLEAR", "tabId": GLOBAL_TAB_ID }).catch(reportError);
 }
@@ -201,16 +220,13 @@ function prevClick(event) {
 
 async function findClick(event) {
     let searchTerm = document.getElementById('id-find-input').value;
-    GLOBAL_RESULT_CURRENT = -1;
+    GLOBAL_RESULT_CURRENT = 0;
     if (searchTerm.length == 0 || searchTerm.trim().length == 0) {
-        document.getElementById('id-find-input').value = '';
-        GLOBAL_RESULT_COUNT = -1;
-        GLOBAL_RESULT_CURRENT = -1;
-        setResultText();
-        browser.tabs.sendMessage(GLOBAL_TAB_ID, { name: "CLEAR_SCREEN" }).catch(reportError);
-        browser.runtime.sendMessage({ "name": "SAVE_CLEAR", "tabId": GLOBAL_TAB_ID }).catch(reportError);
+        clearClick();
     } else {
         showLoadingIcon();
+        GLOBAL_SEARCH_TERM = searchTerm;
+        browser.runtime.sendMessage({ "name": "SAVE_INPUT_TEXT", "value": searchTerm, "tabId": GLOBAL_TAB_ID }).catch(reportError);
         //bug fix: input fields need to be cleard before searching
         await browser.tabs.sendMessage(GLOBAL_TAB_ID, { name: "BUG_FIX", searchTerm: searchTerm }).catch(reportError);
         let results = await browser.find.find(searchTerm, { includeRangeData: true }).catch(reportError);
@@ -253,14 +269,11 @@ function hideLoadingIcon() {
 
 function setResultText() {
     if (GLOBAL_RESULT_COUNT == -1) {
-        document.getElementById('id-results').innerHTML = '';
+        document.getElementById('id-results').innerText = '';
     } else if (GLOBAL_RESULT_COUNT > 0) {
-        if (GLOBAL_RESULT_CURRENT < 0)
-            document.getElementById('id-results').innerHTML = GLOBAL_RESULT_COUNT;
-        else
-            document.getElementById('id-results').innerHTML = (GLOBAL_RESULT_CURRENT + 1) + ' of ' + GLOBAL_RESULT_COUNT;
+        document.getElementById('id-results').innerText = (GLOBAL_RESULT_CURRENT + 1) + ' of ' + GLOBAL_RESULT_COUNT;
     } else if (GLOBAL_RESULT_COUNT == 0) {
-        document.getElementById('id-results').innerHTML = 'No Results';
+        document.getElementById('id-results').innerText = 'No Results';
     }
 }
 

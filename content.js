@@ -197,8 +197,13 @@
         }
         //sort the result list based on vertical position not horizontal
         GLOBAL_RESULT_LIST.sort(function(a, b) { return a.rect.top - b.rect.top });
-        GLOBAL_TIMER = setInterval(checkForChanges, TIMER_INTERVAL); //start timer to keep results in sync with page
-        forceRedraw(); //the page does not update automatically (bug?)
+
+        //GLOBAL_TIMER = setInterval(checkForChanges, TIMER_INTERVAL); //start timer to keep results in sync with page
+        //forceRedraw(); //the page does not update automatically (bug?)
+
+        if (GLOBAL_COUNT > 0)
+            nextResult(0);
+
         return GLOBAL_COUNT; //return count back to popup page
     }
 
